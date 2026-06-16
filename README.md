@@ -137,16 +137,16 @@ Calibrate travel: move a known distance, then adjust `$100` / `$101`.
 
 # GRBL Blue Pill Stepper (RU)
 
-Прошивка **Grbl 1.1f** для **STM32F103C8 (Blue Pill)** с двигателями **28BYJ-48 + ULN2003** (полушаг). Для простых **XY плоттеров**.
+Прошивка **Grbl 1.1f** для **STM32F103C8 (Blue Pill)** с двигателями **28BYJ-48 + ULN2003** (полушаговый режим). Предназначена для простых **XY плоттеров**.
 
 Основано на [GRBL32](https://github.com/terjeio/grbl32) (YSV).
 
 ## Возможности
 
 - 3 оси XYZ, G-code (Grbl 1.1f)
-- 28BYJ-48 через ULN2003 (8 полушагов)
+- 28BYJ-48 через ULN2003 (8 полушагов, управление обмотками)
 - Последовательный порт: **USART1, 115200 бод**
-- Сборка: **Make** или **PlatformIO**
+- Сборка через **Make** или **PlatformIO**
 
 ## Подключение
 
@@ -154,9 +154,9 @@ Calibrate travel: move a known distance, then adjust `$100` / `$101`.
 
 | Назначение | Вывод | Подключение |
 |------------|-------|-------------|
-| TX | PA9 | RX адаптера |
-| RX | PA10 | TX адаптера |
-| GND | GND | GND адаптера |
+| TX | PA9 | RX USB-UART |
+| RX | PA10 | TX USB-UART |
+| GND | GND | GND USB-UART |
 
 ### Моторы (28BYJ-48 + ULN2003)
 
@@ -168,26 +168,35 @@ Calibrate travel: move a known distance, then adjust `$100` / `$101`.
 
 **Важно**
 
-- Общий **GND** для Blue Pill и ULN2003.
-- Питание моторов — отдельный **5 В** (не с 3.3 В МК).
-- BOOT0: **0** (загрузка из flash).
-- Прошивка: **ST-LINK (SWD)** или USB-UART bootloader.
+- Общий **GND** для Blue Pill и всех плат ULN2003.
+- Питание моторов — отдельный источник **5 В** (не с вывода 3.3 В МК).
+- Перемычка BOOT0: **0** (загрузка из flash).
+- Прошивка через **ST-LINK (SWD)** или USB-UART bootloader.
+
+```
+USB-UART          Blue Pill          ULN2003 (X)
+────────          ─────────          ────────────
+    RX ────────── PA9 (TX)
+    TX ────────── PA10 (RX)
+   GND ────────── GND ───────────── GND
+                   PA0..PA3 ─────── IN1..IN4
+```
 
 ## Конфигурация
 
-В `inc/config.h`:
+Параметры по умолчанию задаются в `inc/config.h`:
 
 ```c
 #define DEFAULTS_PLOTTER
 ```
 
-Параметры шагов/мм и скоростей — в `inc/defaults.h` или через serial (`$100`, `$101`, …).
+Шаги/мм и скорости настраиваются в `inc/defaults.h` (блок `DEFAULTS_PLOTTER`) или через serial после прошивки (`$100`, `$101`, …).
 
-Выводы обмоток: `inc/cpu_map.h`.
+Назначение выводов обмоток: `inc/cpu_map.h` (в блоке `CPU_MAP_STM32F103`).
 
-USB вместо USART: `make USEUSB=1`.
+USB вместо USART: `make USEUSB=1` или `-DUSEUSB` в `platformio.ini`.
 
-После смены прошивки:
+После смены прошивки или значений по умолчанию сбросьте EEPROM:
 
 ```text
 $RST=$
@@ -195,22 +204,46 @@ $RST=$
 
 ## Сборка
 
+### Зависимости
+
 ```bash
 sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi stlink-tools
+```
+
+### Make
+
+```bash
+make info
 make
+make size
+```
+
+Порядок выбора toolchain: `GCC_PATH` → `PATH` → PlatformIO (резерв).
+
+```bash
+make GCC_PATH=/usr/bin
+make DEBUG=1
+make USEUSB=1
 ```
 
 Результат: `Release/GRBL32_F103C8_PLOTTER_USART_115200.hex`
 
+### PlatformIO
+
 ```bash
 pio run
+pio run -t upload
 ```
 
 ## Прошивка
 
 ```bash
-make flash
+make flash         # записать .hex
+make upload        # записать .bin по адресу 0x08000000
+make erase         # полное стирание
 ```
+
+Вручную:
 
 ```bash
 st-flash --reset write Release/GRBL32_F103C8_PLOTTER_USART_115200.hex
@@ -223,16 +256,16 @@ screen /dev/ttyUSB0 115200
 ```
 
 ```text
-$RST=$
-$X
-?
-$$
+$RST=$       ; сброс настроек (первая прошивка)
+$X           ; снять аварию при необходимости
+?            ; статус
+$$           ; просмотр настроек
 ```
 
-Калибровка: переместите ось на известное расстояние, настройте `$100` / `$101`.
+Калибровка хода: переместите ось на известное расстояние, затем настройте `$100` / `$101`.
 
 ## Лицензия
 
 - [Grbl](https://github.com/gnea/grbl) — GPL v3
-- Порт GRBL32 — YSV
+- Порт GRBL32 для STM32 — YSV
 - Управление обмотками — адаптация из grbl-28byj-48 (Arduino)
