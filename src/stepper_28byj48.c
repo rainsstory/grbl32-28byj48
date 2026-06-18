@@ -1,19 +1,29 @@
 /*
-  stepper_28byj48.c - 28BYJ-48 + ULN2003 half-step coil drive
+  stepper_28byj48.c - 28BYJ-48 + ULN2003 half-step coil drive for STM32
+  Ported from grbl-28byj-48/grbl/stepper.c coil sequencing logic.
+
+  Wiring (Blue Pill):
+    X axis ULN2003 IN1..IN4 -> PA0, PA1, PA2, PA3
+    Y axis ULN2003 IN1..IN4 -> PA4, PA5, PA6, PA7
+    Z axis ULN2003 IN1..IN4 -> PB0, PB1, PB8, PB9
 */
 
 #include "grbl.h"
+
+#ifdef USE_28BYJ48
 
 #ifdef STM32F103C8
 #include "stm32f10x_rcc.h"
 #include "stm32f10x_gpio.h"
 #endif
 
-#include "stepper_28byj48.h"
-
+// 8-state half-step patterns (IN4..IN1 as bits 3..0), same as grbl-28byj-48 Y axis table.
 static const uint8_t half_step_nibble[8] = {0x8, 0xC, 0x4, 0x6, 0x2, 0x3, 0x1, 0x9};
+
+// Phase index 1..8 per axis (matches original fork's costyx/costyy/costyz).
 static uint8_t coil_phase[N_AXIS] = {1, 1, 1};
 
+// Z uses non-contiguous pins PB0, PB1, PB8, PB9 (like Arduino Z on PB0,1,4,5).
 static const uint16_t z_coil_odr[8] = {
   (1 << 9),
   (1 << 9) | (1 << 8),
@@ -101,3 +111,5 @@ void stepper_28byj48_step(uint8_t axis, bool reverse)
       break;
   }
 }
+#endif
+

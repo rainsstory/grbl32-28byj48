@@ -57,7 +57,6 @@ void system_init()
   GPIO_EXTILineConfig(GPIO_CONTROL_PORT, CONTROL_RESET_BIT);
   GPIO_EXTILineConfig(GPIO_CONTROL_PORT, CONTROL_FEED_HOLD_BIT);
   GPIO_EXTILineConfig(GPIO_CONTROL_PORT, CONTROL_CYCLE_START_BIT);
-  GPIO_EXTILineConfig(GPIO_CONTROL_PORT, CONTROL_SAFETY_DOOR_BIT);
 
   EXTI_InitTypeDef EXTI_InitStructure;
   EXTI_InitStructure.EXTI_Line = CONTROL_MASK;    //
@@ -133,7 +132,7 @@ ISR(CONTROL_INT_vect)
 #if defined (STM32F103C8)
 void EXTI9_5_IRQHandler(void)
 {
-    EXTI_ClearITPendingBit((1 << CONTROL_RESET_BIT) | (1 << CONTROL_FEED_HOLD_BIT) | (1 << CONTROL_CYCLE_START_BIT) | (1 << CONTROL_SAFETY_DOOR_BIT));
+    EXTI_ClearITPendingBit(CONTROL_MASK);
 	uint8_t pin = system_control_get_state();
 	if (pin) 
 	{ 

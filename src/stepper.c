@@ -20,7 +20,10 @@
 */
 
 #include "grbl.h"
+
+#ifdef USE_28BYJ48
 #include "stepper_28byj48.h"
+#endif
 
 #ifdef STM32F103C8
 typedef int bool;
@@ -340,7 +343,14 @@ void st_wake_up()
 #elif defined (WIN32)
   st.step_pulse_time = (settings.pulse_microseconds)*TICKS_PER_MICROSECOND;
 #elif defined(STM32F103C8)
-  (void)settings.pulse_microseconds;
+	#ifdef STEP_PULSE_DELAY
+    TIM3->SR = ~TIM_SR_CC1IF; // clear CC1IF flag
+	TIM3->CCR1 = (STEP_PULSE_DELAY - 1) * TICKS_PER_MICROSECOND + 1; //+1 for STEP_PULSE_DELAY=1, -1 to be closer to exact delay
+    st.step_pulse_time = (settings.pulse_microseconds + (STEP_PULSE_DELAY - 1)) * TICKS_PER_MICROSECOND + 1;
+	#else // Normal operation
+    // A value, determined with a logic analyzer is substracted to get close to the desired pulse time
+  	st.step_pulse_time = (settings.pulse_microseconds)*TICKS_PER_MICROSECOND - 58;
+	#endif
 #endif
 
 
@@ -352,6 +362,10 @@ void st_wake_up()
   nTimer1Out = 1;
 #endif
 #if defined (STM32F103C8)
+  TIM3->ARR = st.step_pulse_time; // don't subtract 1!
+  TIM3->EGR = TIM_PSCReloadMode_Immediate;
+  TIM3->SR = ~TIM_SR_UIF;
+
   TIM2->ARR = st.exec_segment->cycles_per_tick - 1;
   /* Set the Autoreload value */
 #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING        
@@ -393,7 +407,7 @@ void st_go_idle()
   if (pin_state) 
   { 
 	  SetStepperDisableBit();
-#ifdef STM32F103C8
+#ifdef USE_28BYJ48
     stepper_28byj48_coils_off();
 #endif
   }
@@ -478,23 +492,55 @@ void Timer1Proc()
 #ifdef AVRTARGET
   // Set the direction pins a couple of nanoseconds before we step the steppers
   DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
+#endif
+#ifdef STM32F103C8
+  //GPIO_Write(DIRECTION_PORT, (GPIO_ReadOutputData(DIRECTION_PORT) & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK));
+#ifndef USE_28BYJ48
+  DIRECTION_PORT->ODR = ((DIRECTION_PORT->ODR & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK));
+#endif
+  TIM3->SR = ~( TIM_SR_UIF | TIM_SR_CC1IF);
+#endif
+
+
+#ifdef AVRTARGET
   // Then pulse the stepping pins
   #ifdef STEP_PULSE_DELAY
-    st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
-  #else
+    st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits; // Store out_bits to prevent overwriting.
+  #else  // Normal operation
     STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
   #endif
-  TCNT0 = st.step_pulse_time;
-  TCCR0B = (1<<CS01);
-  busy = true;
-  sei();
+#endif
+#ifdef STM32F103C8
+    // Then pulse the stepping pins
+    #ifdef STEP_PULSE_DELAY
+      st.step_bits = st.step_outbits; // Store out_bits to prevent overwriting.
+    #else  // Normal operation
+#ifndef USE_28BYJ48
+      STEP_PORT->ODR = ((STEP_PORT->ODR & ~STEP_MASK) | st.step_outbits);
+#endif
+      //GPIO_Write(STEP_PORT, (GPIO_ReadOutputData(STEP_PORT) & ~STEP_MASK) | st.step_outbits);
+    #endif
+#endif
+
+
+  // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
+  // exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
+#ifdef AVRTARGET
+  TCNT0 = st.step_pulse_time; // Reload Timer0 counter
+  TCCR0B = (1<<CS01); // Begin Timer0. Full speed, 1/8 prescaler
 #endif
 #ifdef WIN32
   nTimer0Out = st.step_pulse_time;
-  busy = true;
 #endif
 #ifdef STM32F103C8
+#ifndef USE_28BYJ48
+  TIM3->CR1 |= TIM_CR1_CEN;
+#endif
+#endif
   busy = true;
+#ifdef AVRTARGET
+  sei(); // Re-enable interrupts to allow Stepper Port Reset Interrupt to fire on-time.
+         // NOTE: The remaining code in this ISR will finish before returning to main program.
 #endif
 
   // If there is no step segment, attempt to pop one from the stepper buffer
@@ -604,9 +650,11 @@ void Timer1Proc()
     st.counter_x -= st.exec_block->step_event_count;
     if (st.exec_block->direction_bits & (1<<X_DIRECTION_BIT)) { sys_position[X_AXIS]--; }
     else { sys_position[X_AXIS]++; }
+#ifdef USE_28BYJ48
     if (stepper_28byj48_axis_allowed(X_STEP_BIT)) {
       stepper_28byj48_step(X_AXIS, bit_istrue(st.exec_block->direction_bits, (1<<X_DIRECTION_BIT)));
     }
+#endif
   }
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_y += st.steps[Y_AXIS];
@@ -618,9 +666,11 @@ void Timer1Proc()
     st.counter_y -= st.exec_block->step_event_count;
     if (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT)) { sys_position[Y_AXIS]--; }
     else { sys_position[Y_AXIS]++; }
+#ifdef USE_28BYJ48
     if (stepper_28byj48_axis_allowed(Y_STEP_BIT)) {
       stepper_28byj48_step(Y_AXIS, bit_istrue(st.exec_block->direction_bits, (1<<Y_DIRECTION_BIT)));
     }
+#endif
   }
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_z += st.steps[Z_AXIS];
@@ -632,9 +682,11 @@ void Timer1Proc()
     st.counter_z -= st.exec_block->step_event_count;
     if (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT)) { sys_position[Z_AXIS]--; }
     else { sys_position[Z_AXIS]++; }
+#ifdef USE_28BYJ48
     if (stepper_28byj48_axis_allowed(Z_STEP_BIT)) {
       stepper_28byj48_step(Z_AXIS, bit_istrue(st.exec_block->direction_bits, (1<<Z_DIRECTION_BIT)));
     }
+#endif
   }
 // --- YSV 22-06-2018
   #if defined(AA_AXIS) || defined(AB_AXIS) || defined(ABC_AXIS)
@@ -715,23 +767,42 @@ void Timer1Proc()
 // completing one step cycle.
 #ifdef STM32F103C8
 void TIM3_IRQHandler(void)
-{
-  return;
-}
 #endif
 #ifdef AVRTARGET
 ISR(TIMER0_OVF_vect)
-{
-  STEP_PORT = (STEP_PORT & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK);
-  TCCR0B = 0;
-}
 #endif
 #ifdef WIN32
 void Timer0Proc()
-{
-  nTimer0Out = 0;
-}
 #endif
+{
+#ifdef USE_28BYJ48
+  return;
+#endif
+#ifdef STM32F103C8
+#ifdef STEP_PULSE_DELAY
+	if ((TIM3->SR & TIM_SR_CC1IF) != 0) // check interrupt source
+	{
+		STEP_PORT->ODR = ((STEP_PORT->ODR & ~STEP_MASK) | st.step_bits); // Begin step pulse.
+		TIM3->SR = ~TIM_SR_CC1IF; // clear CC1IF flag
+	} else
+#endif
+	{
+		STEP_PORT->ODR = ((STEP_PORT->ODR & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK));
+		TIM3->CR1 &= ~TIM_CR1_CEN;
+		TIM3->SR = ~(TIM_SR_UIF | TIM_SR_CC1IF); // clear UIF flag
+		TIM3->CNT = 0;
+	}
+#endif
+
+#ifdef AVRTARGET
+  // Reset stepping pins (leave the direction pins)
+  STEP_PORT = (STEP_PORT & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK);
+  TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed.
+#endif
+#ifdef WIN32
+  nTimer0Out = 0;
+#endif
+}
 #ifdef AVRTARGET
 #ifdef STEP_PULSE_DELAY
   // This interrupt is used only when STEP_PULSE_DELAY is enabled. Here, the step pulse is
@@ -786,7 +857,20 @@ void st_reset()
   DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | dir_port_invert_mask;
 #endif
 #ifdef STM32F103C8
-  stepper_28byj48_coils_off();
+  while(TIM3->CR1 & TIM_CR1_CEN); // wait for end of tim3 work to prevent cutoff last step pulse
+//#ifdef STEP_PULSE_DELAY
+//	TIM3->DIER &= ~TIM_DIER_CC1IE; //compare interrupt disable
+//#endif
+  TIM3->SR = ~(TIM_SR_UIF | TIM_SR_CC1IF); // clear UIF and CC1IF flags
+#ifndef USE_28BYJ48
+  STEP_PORT->ODR = ((STEP_PORT->ODR & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK));
+  DIRECTION_PORT->ODR = ((DIRECTION_PORT->ODR & ~DIRECTION_MASK) | (dir_port_invert_mask & DIRECTION_MASK));
+#endif
+  //GPIO_Write(STEP_PORT, (GPIO_ReadOutputData(STEP_PORT) & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK));
+  //GPIO_Write(DIRECTION_PORT, (GPIO_ReadOutputData(DIRECTION_PORT) & ~DIRECTION_MASK) | (dir_port_invert_mask & DIRECTION_MASK));
+//#ifdef STEP_PULSE_DELAY
+//	TIM3->DIER |= TIM_DIER_CC1IE; //compare interrupt enable
+//#endif
 #endif
 }
 
@@ -834,16 +918,45 @@ void stepper_init()
 {
   // Configure step and direction interface pins
 #ifdef STM32F103C8
+#ifdef USE_28BYJ48
 	stepper_28byj48_init();
+#else
+	GPIO_InitTypeDef GPIO_InitStructure;
+	RCC_APB2PeriphClockCmd(RCC_STEPPERS_DISABLE_PORT, ENABLE);
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_InitStructure.GPIO_Pin = STEPPERS_DISABLE_MASK;
+	GPIO_Init(STEPPERS_DISABLE_PORT, &GPIO_InitStructure);
+
+	RCC_APB2PeriphClockCmd(RCC_STEP_PORT, ENABLE);
+	GPIO_InitStructure.GPIO_Pin = STEP_MASK;
+	GPIO_Init(STEP_PORT, &GPIO_InitStructure);
+
+	RCC_APB2PeriphClockCmd(RCC_DIRECTION_PORT, ENABLE);
+	GPIO_InitStructure.GPIO_Pin = DIRECTION_MASK;
+	GPIO_Init(DIRECTION_PORT, &GPIO_InitStructure);
+#endif
 
 	RCC->APB1ENR |= RCC_APB1Periph_TIM2;
 	TIM_Configuration(TIM2, 1, 1, 1);
+	RCC->APB1ENR |= RCC_APB1Periph_TIM3;
+	TIM_Configuration(TIM3, 1, 1, 1);
 
 	TIM2->CR1 &= ~TIM_CR1_CEN;
 	TIM2->SR &= ~TIM_SR_UIF;
 	TIM2->CNT = 0;
 
+	TIM3->CR1 &= ~TIM_CR1_CEN;
+	TIM3->SR &= ~(TIM_SR_UIF | TIM_SR_CC1IF);
+	TIM3->CNT = 0;
+	//
+#ifdef STEP_PULSE_DELAY
+	TIM3->DIER |= TIM_DIER_CC1IE; //compare interrupt enable
+#endif
+
+	NVIC_SetPriority(TIM3_IRQn, 0);
 	NVIC_SetPriority(TIM2_IRQn, 1);
+	NVIC_EnableIRQ(TIM3_IRQn);
 	NVIC_EnableIRQ(TIM2_IRQn);
 #endif
 #ifdef AVRTARGET

@@ -20,6 +20,7 @@
 */
 
 #include "grbl.h"
+#include "stepper_28byj48.h"
 // Declare system global variable structure
 system_t sys;
 int32_t sys_position[N_AXIS];      // Real-time machine (aka home) position vector in steps.
@@ -34,15 +35,16 @@ volatile uint8_t sys_rt_exec_debug;
 #endif
 
 #if defined (STM32F103C8)
-#include "usb_lib.h"
 #ifdef USEUSB
+#include "usb_init.h"
 #include "usb_desc.h"
 #endif
-#include "hw_config.h"
 #ifdef USEUSB
 #include "usb_pwr.h"
+void Set_USBClock(void);
+void USB_Interrupts_Config(void);
 #endif
-#include "stm32eeprom.h"
+#include "stm32f10x_flash.h"
 #ifndef USEUSB
 #include "stm32f10x_usart.h"
 
@@ -125,6 +127,9 @@ int main(void)
   settings_init(); // Load Grbl settings from EEPROM
   stepper_init();  // Configure stepper pins and interrupt timers
   system_init();   // Configure pinout pins and pin-change interrupt
+#ifdef USE_28BYJ48
+  stepper_28byj48_init(); // PB8 is Z IN3, restore it after control GPIO init.
+#endif
 
   memset(sys_position,0,sizeof(sys_position)); // Clear machine position.
 #ifdef AVRTARGET
