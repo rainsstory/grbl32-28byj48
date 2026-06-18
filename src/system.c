@@ -18,7 +18,7 @@
   along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "grbl.h"
+#include "grbl.h" // IWYU pragma: keep
 
 
 void system_init()
