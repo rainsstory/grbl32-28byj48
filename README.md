@@ -50,10 +50,11 @@ USB-UART          Blue Pill          ULN2003 (X)
 Defaults are set in `inc/config.h`:
 
 ```c
-#define DEFAULTS_PLOTTER
+#define DEFAULTS_28BYJ48
+#define USE_28BYJ48
 ```
 
-Tune steps/mm and speeds in `inc/defaults.h` (`DEFAULTS_PLOTTER` block), or over serial after flashing (`$100`, `$101`, …).
+Tune steps/mm and speeds in `inc/defaults.h` (`DEFAULTS_28BYJ48` block), or over serial after flashing (`$100`, `$101`, …).
 
 Coil pin assignments: `inc/cpu_map.h` (under `CPU_MAP_STM32F103`).
 
@@ -187,10 +188,11 @@ USB-UART          Blue Pill          ULN2003 (X)
 Параметры по умолчанию задаются в `inc/config.h`:
 
 ```c
-#define DEFAULTS_PLOTTER
+#define DEFAULTS_28BYJ48
+#define USE_28BYJ48
 ```
 
-Шаги/мм и скорости настраиваются в `inc/defaults.h` (блок `DEFAULTS_PLOTTER`) или через serial после прошивки (`$100`, `$101`, …).
+Шаги/мм и скорости настраиваются в `inc/defaults.h` (блок `DEFAULTS_28BYJ48`) или через serial после прошивки (`$100`, `$101`, …).
 
 Назначение выводов обмоток: `inc/cpu_map.h` (в блоке `CPU_MAP_STM32F103`).
 
