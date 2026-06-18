@@ -30,8 +30,65 @@
 
 #ifndef defaults_h
 
-#ifdef DEFAULTS_PLOTTER
-  // 28BYJ-48 half-step (~2048 steps/rev at gearbox output). Tune $100-$102.
+#ifdef DEFAULTS_3040T
+
+#define X_MICROSTEPS 16
+#define Y_MICROSTEPS 16
+#define Z_MICROSTEPS 8
+
+#define STEPS_PER_REV 200.0f
+#define MM_PER_REV 4.0
+
+#define DEFAULT_X_STEPS_PER_MM (STEPS_PER_REV * X_MICROSTEPS / MM_PER_REV)		// $100		steps/mm
+#define DEFAULT_Y_STEPS_PER_MM (STEPS_PER_REV * Y_MICROSTEPS / MM_PER_REV)		// $101
+#define DEFAULT_Z_STEPS_PER_MM (STEPS_PER_REV * Z_MICROSTEPS / MM_PER_REV)		// $102
+
+#define DEFAULT_X_MAX_RATE 3000.0f // mm/min	$110
+#define DEFAULT_Y_MAX_RATE 3000.0f // mm/min	$111
+#define DEFAULT_Z_MAX_RATE 500.0f // mm/min	$112
+
+#define DEFAULT_X_ACCELERATION (50.0f * 60 * 60) // 10*60*60 mm/min^2 = 10 mm/sec^2	$120
+#define DEFAULT_Y_ACCELERATION (50.0f * 60 * 60) // 10*60*60 mm/min^2 = 10 mm/sec^2	$121
+#define DEFAULT_Z_ACCELERATION (10.0f * 60 * 60) // 10*60*60 mm/min^2 = 10 mm/sec^2	$122
+
+#define DEFAULT_X_MAX_TRAVEL 280.0f // mm NOTE: Must be a positive value.	$130
+#define DEFAULT_Y_MAX_TRAVEL 377.0f // mm NOTE: Must be a positive value.	$131
+#define DEFAULT_Z_MAX_TRAVEL 53.0f // mm NOTE: Must be a positive value.	$132
+
+#define DEFAULT_STEP_PULSE_MICROSECONDS 4		//usec		$0
+#define DEFAULT_STEPPER_IDLE_LOCK_TIME 25 // msec (0-254, 255 keeps steppers enabled)	$1
+#define DEFAULT_STEPPING_INVERT_MASK 0		//					$2
+#define DEFAULT_DIRECTION_INVERT_MASK 4		//					$3  invert Z
+#define DEFAULT_INVERT_ST_ENABLE 0 // false						$4
+#define DEFAULT_INVERT_LIMIT_PINS 0 // false					$5
+#define DEFAULT_INVERT_PROBE_PIN 0 // true						$6
+
+#define DEFAULT_STATUS_REPORT_MASK 3 // MPos enabled	$10
+#define DEFAULT_JUNCTION_DEVIATION 0.01f // mm				$11
+#define DEFAULT_ARC_TOLERANCE 0.002f // mm						$12
+#define DEFAULT_REPORT_INCHES 0 // false							$13
+
+#define DEFAULT_SOFT_LIMIT_ENABLE 0 // false					$20
+#define DEFAULT_HARD_LIMIT_ENABLE 1  // true					$21
+#define DEFAULT_HOMING_ENABLE 1  // false							$22
+#define DEFAULT_HOMING_DIR_MASK 1 // move positive dir $23
+#define DEFAULT_HOMING_FEED_RATE 25.0f // mm/min			$24
+#define DEFAULT_HOMING_SEEK_RATE 500.0f // mm/min			$25
+#define DEFAULT_HOMING_DEBOUNCE_DELAY 250 // msec (0-65k)	$26
+#define DEFAULT_HOMING_PULLOFF 1.0f // mm							$27
+
+#define DEFAULT_SPINDLE_RPM_MAX 8000.0f 		//rpm			$30
+#define DEFAULT_SPINDLE_RPM_MIN 0.0f 			//rpm				$31
+#define DEFAULT_LASER_MODE 0 // false									$32
+
+#define DEFAULT_ANALOG_MAX 10000.0f //analog value		$40
+#define DEFAULT_VARIABLE_SPINDLE_ENABLE_PIN 0               //$50
+
+#endif
+
+
+#ifdef DEFAULTS_28BYJ48
+  // 28BYJ-48 half-step: ~2048 steps/rev at gearbox output. Tune $100-$102 for your mechanics.
   #define DEFAULT_X_STEPS_PER_MM 250.0f
   #define DEFAULT_Y_STEPS_PER_MM 250.0f
   #define DEFAULT_Z_STEPS_PER_MM 250.0f

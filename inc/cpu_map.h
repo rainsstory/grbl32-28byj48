@@ -285,29 +285,29 @@
 
 #ifdef CPU_MAP_STM32F103
 
-  // Logical axis bits for Grbl (invert masks, homing). No physical STEP/DIR pins.
-#define X_STEP_BIT      0
-#define Y_STEP_BIT      1
+  // Define step pulse output pins. NOTE: All step bit pins must be on the same port.
+#define STEP_PORT       GPIOA
+#define RCC_STEP_PORT   RCC_APB2Periph_GPIOA
+#define X_STEP_BIT      0  
+#define Y_STEP_BIT      1  
 #define Z_STEP_BIT      2
-#define STEP_MASK       ((1<<X_STEP_BIT)|(1<<Y_STEP_BIT)|(1<<Z_STEP_BIT))
-#define X_DIRECTION_BIT   3
-#define Y_DIRECTION_BIT   4
-#define Z_DIRECTION_BIT   5
-#define DIRECTION_MASK    ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT)|(1<<Z_DIRECTION_BIT))
-#define SetStepperDisableBit()     ((void)0)
-#define ResetStepperDisableBit()   ((void)0)
+#define STEP_MASK       ((1<<X_STEP_BIT)|(1<<Y_STEP_BIT)|(1<<Z_STEP_BIT)) // All step bits
 
-  // 28BYJ-48 + ULN2003 coil outputs (half-step sequencing)
-#define X_COIL_PORT       GPIOA
-#define X_COIL_MASK       ((1<<0)|(1<<1)|(1<<2)|(1<<3))
-#define X_COIL_PIN_BASE   0
-#define Y_COIL_PORT       GPIOA
-#define Y_COIL_MASK       ((1<<4)|(1<<5)|(1<<6)|(1<<7))
-#define Y_COIL_PIN_BASE   4
-#define Z_COIL_PORT       GPIOB
-#define Z_COIL_MASK       ((1<<0)|(1<<1)|(1<<8)|(1<<9))
-#define RCC_COIL_PORT_A   RCC_APB2Periph_GPIOA
-#define RCC_COIL_PORT_B   RCC_APB2Periph_GPIOB
+  // Define step direction output pins. NOTE: All direction pins must be on the same port.
+#define DIRECTION_PORT      GPIOA
+#define RCC_DIRECTION_PORT   RCC_APB2Periph_GPIOA
+#define X_DIRECTION_BIT   3  
+#define Y_DIRECTION_BIT   4  
+#define Z_DIRECTION_BIT   5
+#define DIRECTION_MASK    ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT)|(1<<Z_DIRECTION_BIT)) // All direction bits
+
+  // Define stepper driver enable/disable output pin.
+#define STEPPERS_DISABLE_PORT   GPIOA
+#define RCC_STEPPERS_DISABLE_PORT RCC_APB2Periph_GPIOA
+#define STEPPERS_DISABLE_BIT    6  
+#define STEPPERS_DISABLE_MASK   (1<<STEPPERS_DISABLE_BIT)
+#define SetStepperDisableBit() GPIO_SetBits(STEPPERS_DISABLE_PORT,STEPPERS_DISABLE_MASK)
+#define ResetStepperDisableBit() GPIO_ResetBits(STEPPERS_DISABLE_PORT,STEPPERS_DISABLE_MASK)
 
 
   // Define homing/hard limit switch input pins and limit interrupt vectors. 
@@ -355,8 +355,8 @@
 #define CONTROL_RESET_BIT             5  
 #define CONTROL_FEED_HOLD_BIT         6  
 #define CONTROL_CYCLE_START_BIT       7  
-#define CONTROL_SAFETY_DOOR_BIT       8  
-#define CONTROL_MASK                 ((1<<CONTROL_RESET_BIT)|(1<<CONTROL_FEED_HOLD_BIT)|(1<<CONTROL_CYCLE_START_BIT)|(1<<CONTROL_SAFETY_DOOR_BIT))
+#define CONTROL_SAFETY_DOOR_BIT       8  // PB8 is used by Z motor IN3 in the plotter build.
+#define CONTROL_MASK                 ((1<<CONTROL_RESET_BIT)|(1<<CONTROL_FEED_HOLD_BIT)|(1<<CONTROL_CYCLE_START_BIT))
 
   // Define probe switch input pin.
 #define PROBE_PORT                    GPIOA
@@ -382,14 +382,41 @@
 #define SPINDLE_PWM_RANGE         (SPINDLE_PWM_MAX_VALUE-SPINDLE_PWM_MIN_VALUE)
 
   //  Port A                                         Port B
-  //   0-3    X motor coils (IN1-IN4)
-  //   4-7    Y motor coils (IN1-IN4)
-  //   8      SPINDLE_PWM_BIT                       CONTROL_SAFETY_DOOR_BIT
-  //   9      USART1 TX
-  //   10     USART1 RX
-  //   15     PROBE_BIT
-  //   0,1,8,9  Z motor coils on port B
-  //   10-12  limit switches
+  //   0      X_STEP_BIT                             
+  //   1      Y_STEP_BIT                            
+  //   2      Z_STEP_BIT                               
+  //   3      X_DIRECTION_BIT                       COOLANT_FLOOD_BIT
+  //   4      Y_DIRECTION_BIT                       COOLANT_MIST_BIT
+  //   5      Z_DIRECTION_BIT                       CONTROL_RESET_BIT
+  //   6      STEPPERS_DISABLE_BIT                  CONTROL_FEED_HOLD_BIT    
+  //   7                                            CONTROL_CYCLE_START_BIT
+  //   8      SPINDLE_PWM_BIT                       Z motor IN3 (PB8)
+  //   9                             
+  //   10                                            X_LIMIT_BIT
+  //   11                                            Y_LIMIT_BIT
+  //   12                                            Z_LIMIT_BIT
+  //   13 14 SWD																		SPINDLE_ENABLE_BIT
+//     14																						SPINDLE_DIRECTION_BIT
+  //   15     PROBE_BIT					
+
+#ifdef USE_28BYJ48
+  // 28BYJ-48 + ULN2003 coil outputs (4 wires per axis, half-step sequencing)
+  // X: PA0-PA3, Y: PA4-PA7, Z: PB0, PB1, PB8, PB9
+  #define X_COIL_PORT       GPIOA
+  #define X_COIL_MASK       ((1<<0)|(1<<1)|(1<<2)|(1<<3))
+  #define X_COIL_PIN_BASE   0
+  #define Y_COIL_PORT       GPIOA
+  #define Y_COIL_MASK       ((1<<4)|(1<<5)|(1<<6)|(1<<7))
+  #define Y_COIL_PIN_BASE   4
+  #define Z_COIL_PORT       GPIOB
+  #define Z_COIL_MASK       ((1<<0)|(1<<1)|(1<<8)|(1<<9))
+  #define RCC_COIL_PORT_A   RCC_APB2Periph_GPIOA
+  #define RCC_COIL_PORT_B   RCC_APB2Periph_GPIOB
+  #undef SetStepperDisableBit
+  #undef ResetStepperDisableBit
+  #define SetStepperDisableBit()     ((void)0)
+  #define ResetStepperDisableBit()   ((void)0)
+#endif
 
 #endif
 

@@ -27,7 +27,6 @@
 
 #ifndef config_h
 #define config_h
-#include "grbl.h" // For Arduino IDE compatibility.
 
 
 // Define CPU pin map and default settings.
@@ -36,7 +35,12 @@
 // If doing so, simply comment out these two defines and see instructions below.
 //#define DEFAULTS_GENERIC
 // #define ABC_AXIS_EXAMPLE
-#define DEFAULTS_PLOTTER
+//#define DEFAULTS_3040T
+#define DEFAULTS_28BYJ48
+
+// 28BYJ-48 unipolar steppers via ULN2003 (half-step coil sequencing).
+// Ported from grbl-28byj-48/. Comment out to use step/dir drivers (A4988, etc.).
+#define USE_28BYJ48
 
 #ifdef WIN32
 #define CPU_MAP_WIN32
